@@ -1,138 +1,70 @@
 import numpy as np
 import pandas as pd
 from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import LabelEncoder
+from sklearn.impute import SimpleImputer
 
-def calculate_thresholds(data):
-    # Calculate thresholds based on the first half of the data
-    half_point = len(data) // 2
-    first_half_data = data.iloc[:half_point]
+def classify_iris(data, new_data, clf):
+    # Predict the class for the new data point using the trained classifier (clf)
+    predicted_class = clf.predict(new_data[['sepallength', 'sepalwidth', 'petallength', 'petalwidth']])
+    return predicted_class[0]
 
-    big_leaf_data = first_half_data[first_half_data['Species'] == 'big-leaf']
-    small_leaf_data = first_half_data[first_half_data['Species'] == 'small-leaf']
+def check_accuracy(data, clf):
+    # Calculate accuracy using the trained classifier (clf)
+    X = data[['sepallength', 'sepalwidth', 'petallength', 'petalwidth']]
+    y = data['class']
+    accuracy = clf.score(X, y)
+    return accuracy
 
-    if big_leaf_data.empty or small_leaf_data.empty:
-        # If there are no data points of one or both classes in the first half,
-        # calculate thresholds for the entire dataset
-        big_leaf_data = data[data['Species'] == 'big-leaf']
-        small_leaf_data = data[data['Species'] == 'small-leaf']
+# Load the Iris dataset from a CSV file
+data = pd.read_csv('iris_dataset.csv')
 
-    if big_leaf_data.empty or small_leaf_data.empty:
+# Handle missing values by imputing with column means
+imputer = SimpleImputer(strategy='mean')
+data[['sepallength', 'sepalwidth', 'petallength', 'petalwidth']] = imputer.fit_transform(data[['sepallength', 'sepalwidth', 'petallength', 'petalwidth']])
 
-       
-        big_width_mean = big_leaf_data['Width'].mean()
-        big_length_mean = big_leaf_data['Length'].mean()
-        big_width_std = big_leaf_data['Width'].std()
-        big_length_std = big_leaf_data['Length'].std()
+# Encode the 'class' column into numeric labels
+label_encoder = LabelEncoder()
+data['class'] = label_encoder.fit_transform(data['class'])
 
-    small_width_mean = small_leaf_data['Width'].mean()
-    small_length_mean = small_leaf_data['Length'].mean()
-    small_width_std = small_leaf_data['Width'].std()
-    small_length_std = small_leaf_data['Length'].std()
+# Train a Gaussian Naive Bayes classifier on the data
+X = data[['sepallength', 'sepalwidth', 'petallength', 'petalwidth']].values
+y = data['class']
 
-    width_lower_threshold = min(big_width_mean - 2 * big_width_std, small_width_mean - 2 * small_width_std)
-    width_upper_threshold = max(big_width_mean + 2 * big_width_std, small_width_mean + 2 * small_width_std)
+clf = GaussianNB()
+clf.fit(X, y)
 
-    length_lower_threshold = min(big_length_mean - 2 * big_length_std, small_length_mean - 2 * small_length_std)
-    length_upper_threshold = max(big_length_mean + 2 * big_length_std, small_length_mean + 2 * small_length_std)
-
-    return width_lower_threshold, width_upper_threshold, length_lower_threshold, length_upper_threshold
-
-
-def classify_leaf(data, new_width, new_length, thresholds):
-    if thresholds is None:
-        return "Unable to calculate thresholds due to missing or invalid data"
-
-    width_lower_threshold, width_upper_threshold, length_lower_threshold, length_upper_threshold = thresholds
-
-    # If both width and length are above upper thresholds, classify as big leaf
-    if new_width > width_upper_threshold and new_length > length_upper_threshold:
-        return "big-leaf"
-
-    # Train a Gaussian Naive Bayes classifier on the data
-    X = data[['Width', 'Length']].values
-    y = data['Species']
-
-    clf = GaussianNB()
-    clf.fit(X, y)
-
-    # Predict the probabilities for each class for the new data point
-    class_probabilities = clf.predict_proba([[new_width, new_length]])[0]
-
-    # Use the class probabilities and thresholds to make a probabilistic prediction
-    if class_probabilities[0] > class_probabilities[1]:
-        if new_width < width_lower_threshold or new_length < length_lower_threshold:
-            return "small-leaf"
-        else:
-            return "big-leaf"
-    else:
-        if new_width < width_lower_threshold or new_length < length_lower_threshold:
-            return "big-leaf"
-        else:
-            return "small-leaf"
-
-def check_accuracy(data, thresholds):
-    if thresholds is None:
-        return None, None
-
-    correct_predictions_original = 0
-    correct_predictions_new = 0
-
-    # Calculate accuracy for the original dataset (excluding the last row)
-    for index, row in data.iterrows():
-        if index == len(data) - 1:
-            # Skip the last (new) row
-            continue
-
-        actual = row['Species']
-        predicted = classify_leaf(data.iloc[:-1], row['Width'], row['Length'], thresholds)
-
-        if actual == predicted:
-            correct_predictions_original += 1
-
-    accuracy_original = correct_predictions_original / (len(data) - 1)  # Exclude the last row from total
-
-    # Calculate accuracy for the new row (the last row)
-    actual_new = data.iloc[-1]['Species']
-    predicted_new = classify_leaf(data.iloc[:-1], new_width, new_length, thresholds)
-
-    if actual_new == predicted_new:
-        correct_predictions_new = 1
-
-    accuracy_new = correct_predictions_new
-
-    return accuracy_original, accuracy_new
-
-# Load the source leaf data from a CSV file
-data = pd.read_csv('daun.csv')
-
-width_lower_threshold, width_upper_threshold, length_lower_threshold, length_upper_threshold = calculate_thresholds(data)
-
-print(f"Width Lower Threshold: {width_lower_threshold}")
-print(f"Width Upper Threshold: {width_upper_threshold}")
-print(f"Length Lower Threshold: {length_lower_threshold}")
-print(f"Length Upper Threshold: {length_upper_threshold}")
-
-# Calculate thresholds based on the first half of the data
-thresholds = calculate_thresholds(data)
-
+# User input for new data
 try:
-    new_width = float(input("Enter the width of the new leaf: "))
-    new_length = float(input("Enter the length of the new leaf: "))
+    new_sepallength = float(input("Enter the sepal length of the new data: "))
+    new_sepalwidth = float(input("Enter the sepal width of the new data: "))
+    new_petallength = float(input("Enter the petal length of the new data: "))
+    new_petalwidth = float(input("Enter the petal width of the new data: "))
 except ValueError:
-    print("Invalid input. Please enter numeric values for width and length.")
+    print("Invalid input. Please enter numeric values for attributes.")
     exit()
 
-result = classify_leaf(data, new_width, new_length, thresholds)
-print(result)
+new_data = pd.DataFrame({'sepallength': [new_sepallength],
+                         'sepalwidth': [new_sepalwidth],
+                         'petallength': [new_petallength],
+                         'petalwidth': [new_petalwidth]})
 
-# Create a new DataFrame for the result of the prediction and the new data
-new_data = pd.DataFrame({'Width': [new_width], 'Length': [new_length], 'Species': [result]})
+# Classify the new data using the trained classifier
+result = classify_iris(data, new_data, clf)
 
-#Append the new data to the existing data
+# Inverse transform the predicted numeric class label to the original string label
+predicted_class_label = label_encoder.inverse_transform([result])[0]
+print(f"Predicted class for the new data: {predicted_class_label}")
+
+# Append the new data to the existing data
 data = data.append(new_data, ignore_index=True)
 
-# Save the updated data to 'daun.csv'
-data.to_csv('daun.csv', index=False)
+# Encode the 'class' column into numeric labels for accuracy calculation
+data['class'] = label_encoder.transform(data['class'])
 
-accuracy_original, accuracy_new = check_accuracy(data, thresholds)
-print(f"Accuracy: {accuracy_original * 100:.2f}%")
+# Save the updated data to 'iris_dataset.csv'
+data.to_csv('iris_dataset.csv', index=False)
+
+# Calculate accuracy using the trained classifier
+accuracy = check_accuracy(data, clf)
+print(f"Accuracy: {accuracy * 100:.2f}%")

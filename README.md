@@ -10,7 +10,7 @@ Handrian Wibisono R - 1313621036
 How to run
 
 1. Open file "main.py"
-2. Data input terdapat di dalam file daun.csv
+2. Data input terdapat di dalam file iris.csv
 3. Install lib numpy, pandas, dan scikit
 
 pip install numpy pandas scikit
